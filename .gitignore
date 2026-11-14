@@ -1,0 +1,24 @@
+# Personal / Claude Code files
+CLAUDE.md
+PLAN.md
+.claude/
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Raw data (can be downloaded again)
+data/raw/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor / OS
+.vscode/
+Thumbs.db
+.DS_Store
