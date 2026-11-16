@@ -49,7 +49,7 @@ CREATE TABLE earthquake_version (
     updated       TIMESTAMPTZ      NOT NULL,  -- partial key
     time          TIMESTAMPTZ      NOT NULL,  -- origin time of the earthquake
     mag           DOUBLE PRECISION NOT NULL,
-    mag_type      TEXT             NOT NULL,
+    mag_type      TEXT,                       -- NULL when USGS gives no type (rare, old events)
     status        TEXT             NOT NULL,
     place         TEXT             NOT NULL,
     type          TEXT             NOT NULL,
