@@ -15,6 +15,9 @@ venv/
 # Raw data (can be downloaded again)
 data/raw/
 
+# Logs of the daily update
+logs/
+
 # Jupyter
 .ipynb_checkpoints/
 

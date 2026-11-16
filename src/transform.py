@@ -1,7 +1,7 @@
 """Transform step: load the raw USGS files and clean the data with pandas.
 
-load.py calls load_raw_events() and clean_events() and gets the cleaned
-DataFrame in memory; nothing is written to disk here.
+load.py and update.py call load_raw_events() and clean_events() and get the
+cleaned DataFrame in memory; nothing is written to disk here.
 print_profile() is a data quality report used to choose the cleaning rules.
 """
 
@@ -17,10 +17,16 @@ MIN_LATITUDE, MAX_LATITUDE = 35, 43
 MIN_LONGITUDE, MAX_LONGITUDE = 24.5, 45
 
 
-def load_raw_events():
-    """Read every raw GeoJSON file and return one DataFrame row per event."""
+def load_raw_events(paths=None):
+    """Read raw GeoJSON files and return one DataFrame row per event.
+
+    paths: the files to read. Default: every yearly file in data/raw/
+    (the full load). update.py passes only the newest updates file.
+    """
+    if paths is None:
+        paths = sorted(RAW_DIR.glob("usgs_*.geojson"))
     rows = []
-    for path in sorted(RAW_DIR.glob("usgs_*.geojson")):
+    for path in paths:
         data = json.loads(path.read_bytes())
         for feature in data["features"]:
             properties = feature["properties"]

@@ -1,13 +1,16 @@
 """Extract step: download earthquake data from the USGS Earthquake Catalog API.
 
-Fetches one year per request, from FIRST_YEAR to the current year, and saves
-each API response unchanged (raw) as a GeoJSON file in data/raw/.
+Full fetch (run this file): one request per year, from FIRST_YEAR to the
+current year, each response saved unchanged (raw) in data/raw/.
+Incremental fetch (used by update.py): fetch_updates() asks only for events
+changed since a given time; save_update() stores that response in
+data/raw/updates/.
 """
 
 import json
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import requests
@@ -28,9 +31,10 @@ FIRST_YEAR = 1900
 
 # data/raw/ relative to the project root, so the script works from any folder.
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+UPDATES_DIR = RAW_DIR / "updates"
 
 TIMEOUT_SECONDS = 60      # wait this long for the server before giving up
-MAX_ATTEMPTS = 3          # tries per year for temporary problems
+MAX_ATTEMPTS = 3          # tries per request for temporary problems
 RETRY_WAIT_SECONDS = 10   # wait between tries
 PAUSE_SECONDS = 1         # pause between years, to be polite to a free public API
 
@@ -39,17 +43,13 @@ PAUSE_SECONDS = 1         # pause between years, to be polite to a free public A
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
-def fetch_year(year):
-    """Request all events of one year and return the raw response body (bytes).
+def request_events(params, label):
+    """Send one query and return the raw response body (bytes).
 
     Retries timeouts, connection errors and temporary server errors.
-    Raises an exception if the year still fails after MAX_ATTEMPTS tries.
+    Raises an exception if the request still fails after MAX_ATTEMPTS tries.
+    label is only used in the printed messages (e.g. "1999" or "updates").
     """
-    params = {
-        **BASE_PARAMS,
-        "starttime": f"{year}-01-01",
-        "endtime": f"{year + 1}-01-01",
-    }
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
             response = requests.get(API_URL, params=params, timeout=TIMEOUT_SECONDS)
@@ -67,17 +67,50 @@ def fetch_year(year):
             problem = f"HTTP {response.status_code}"
 
         if attempt < MAX_ATTEMPTS:
-            print(f"  {year}: {problem}, retrying in {RETRY_WAIT_SECONDS} s "
+            print(f"  {label}: {problem}, retrying in {RETRY_WAIT_SECONDS} s "
                   f"(attempt {attempt} of {MAX_ATTEMPTS})")
             time.sleep(RETRY_WAIT_SECONDS)
 
     raise RuntimeError(f"failed after {MAX_ATTEMPTS} attempts ({problem})")
 
 
+def fetch_year(year):
+    """Request all events of one year."""
+    params = {
+        **BASE_PARAMS,
+        "starttime": f"{year}-01-01",
+        "endtime": f"{year + 1}-01-01",
+    }
+    return request_events(params, str(year))
+
+
+def fetch_updates(since):
+    """Request every event (of any year) that USGS changed after `since`.
+
+    since must be a timezone-aware datetime; it is sent to the API in UTC.
+    starttime is required: without it USGS only searches the last 30 days.
+    """
+    params = {
+        **BASE_PARAMS,
+        "starttime": f"{FIRST_YEAR}-01-01",
+        "updatedafter": since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    return request_events(params, "updates")
+
+
 def save_raw(year, content):
     """Write the raw response to data/raw/usgs_<year>.geojson and return the path."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     path = RAW_DIR / f"usgs_{year}.geojson"
+    path.write_bytes(content)
+    return path
+
+
+def save_update(content):
+    """Write an updates response to data/raw/updates/updates_<UTC time>.geojson."""
+    UPDATES_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = UPDATES_DIR / f"updates_{stamp}.geojson"
     path.write_bytes(content)
     return path
 
