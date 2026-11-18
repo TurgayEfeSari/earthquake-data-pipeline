@@ -84,6 +84,11 @@ def print_profile(df):
     for column in text_columns:
         print(f"{column}: {(df[column].astype('string').str.strip() == '').sum()}")
 
+    # USGS replaces non-ASCII letters (ş, ğ, ı, ā, ...) with "?" in many place
+    # names, e.g. "Gazipa?a". Kept as sent; counted here so the report shows it.
+    question_marks = df["place"].str.contains("?", regex=False).sum()
+    print(f"\nplace with '?' (lost non-ASCII letters): {question_marks}")
+
     print("\n--- Duplicates ---")
     print(f"Same id:            {df['id'].duplicated().sum()}")
     print(f"Same id + updated:  {df.duplicated(subset=['id', 'updated']).sum()}")

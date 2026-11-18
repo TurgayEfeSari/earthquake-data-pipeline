@@ -123,7 +123,8 @@ def load_events(conn, events):
 
 def report_result(new_earthquakes, new_versions, skipped):
     """Print the load result; exit with code 1 if any event was skipped."""
-    print(f"\nDone: {new_earthquakes} new earthquakes, {new_versions} new versions")
+    print(f"\nDone: {new_earthquakes} new earthquakes, {new_versions} new versions "
+          f"added to the database")
     if skipped:
         print(f"Skipped {len(skipped)} events whose ids match more than one "
               f"stored earthquake (USGS merged them):")

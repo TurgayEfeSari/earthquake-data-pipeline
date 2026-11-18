@@ -42,7 +42,10 @@ def main():
     content = fetch_updates(since)
     event_count = len(json.loads(content)["features"])
     path = save_update(content)
-    print(f"{event_count} changed events saved to {path}")
+    # These are all events changed in the whole window (margin included),
+    # not only since yesterday; the load below decides what is really new.
+    print(f"USGS returned {event_count} events changed after {since}")
+    print(f"Raw API response saved to {path}")
 
     if event_count == 0:
         print("\nNothing to load.")
