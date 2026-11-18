@@ -69,4 +69,13 @@ CREATE TABLE earthquake_version (
         CHECK (status IN ('automatic', 'reviewed', 'deleted'))
 );
 
+-- Primary keys and UNIQUE constraints get an index automatically.
+-- Extra indexes, each tested with EXPLAIN (ANALYZE, BUFFERS) in Stage 8:
+
+-- update.py runs SELECT max(updated) every day. In the primary key index
+-- "updated" is the second column, so it cannot be used for this query.
+-- Measured: Seq Scan 460 pages, ~3 ms -> Index Only Scan Backward 3 pages, ~0.06 ms.
+CREATE INDEX earthquake_version_updated_idx
+    ON earthquake_version (updated);
+
 COMMIT;
