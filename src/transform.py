@@ -16,6 +16,15 @@ RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 MIN_LATITUDE, MAX_LATITUDE = 35, 43
 MIN_LONGITUDE, MAX_LONGITUDE = 24.5, 45
 
+# Column names with units, used only in printed tables.
+NUMERIC_COLUMNS = ["mag", "latitude", "longitude", "depth"]
+UNIT_LABELS = {
+    "mag": "mag (no unit)",
+    "latitude": "latitude (deg N)",
+    "longitude": "longitude (deg E)",
+    "depth": "depth (km)",
+}
+
 
 def load_raw_events(paths=None):
     """Read raw GeoJSON files and return one DataFrame row per event.
@@ -72,43 +81,61 @@ def clean_events(df):
 
 
 def print_profile(df):
-    """Print the data quality checks used to choose the cleaning rules."""
+    """Print the data quality checks used to choose the cleaning rules.
+
+    Every section prints one line on how to read it. All counts are numbers
+    of rows (one row = one event version from a raw file).
+    """
     text_columns = ["id", "ids", "mag_type", "place", "type", "status"]
 
     print(f"Rows: {len(df)}  (files: {df['source_file'].nunique()})")
+    print("One row = one event version from one raw file.")
 
     print("\n--- NULL values per column ---")
+    print("Rows where the field is missing. 0 = the column is always filled.")
     print(df.isna().sum().to_string())
 
     print("\n--- Empty strings per text column ---")
+    print("Rows where the field exists but holds no text (\"\" or spaces). 0 = fine.")
     for column in text_columns:
         print(f"{column}: {(df[column].astype('string').str.strip() == '').sum()}")
 
     # USGS replaces non-ASCII letters (ş, ğ, ı, ā, ...) with "?" in many place
     # names, e.g. "Gazipa?a". Kept as sent; counted here so the report shows it.
     question_marks = df["place"].str.contains("?", regex=False).sum()
-    print(f"\nplace with '?' (lost non-ASCII letters): {question_marks}")
+    print(f"\nplace with '?' (lost non-ASCII letters, e.g. 'Gazipa?a'): {question_marks} rows")
 
     print("\n--- Duplicates ---")
+    print("Rows that repeat an earlier row. Same id + updated must be 0: "
+          "it would be the same version twice.")
     print(f"Same id:            {df['id'].duplicated().sum()}")
     print(f"Same id + updated:  {df.duplicated(subset=['id', 'updated']).sum()}")
     print(f"Fully identical:    {df.drop(columns='source_file').duplicated().sum()}")
 
     print("\n--- Value counts ---")
+    print("How many rows have each value (NaN = missing), most common first.")
     for column in ["type", "status", "mag_type"]:
         print(f"\n{column}:")
         print(df[column].value_counts(dropna=False).to_string())
 
     print("\n--- Numeric ranges ---")
-    print(df[["mag", "latitude", "longitude", "depth"]].describe().to_string())
+    print("Each column is read on its own. count = rows with a value, mean = average,")
+    print("std = typical distance from the mean (same unit as the column),")
+    print("min / max = smallest / largest value, 25% / 50% / 75% = this share of the")
+    print("rows has this value or less (50% = median).")
+    numeric = df[NUMERIC_COLUMNS].rename(columns=UNIT_LABELS)
+    print(numeric.describe().to_string())
 
     print("\n--- Time range (UTC) ---")
+    print("time = when the earthquake happened; updated = when USGS last changed the event.")
     times = pd.to_datetime(df["time"], unit="ms", utc=True)
     updated = pd.to_datetime(df["updated"], unit="ms", utc=True)
-    print(f"time:    {times.min()}  ->  {times.max()}")
-    print(f"updated: {updated.min()}  ->  {updated.max()}")
+    print(f"time:    first {times.min()}  ->  last {times.max()}")
+    print(f"updated: first {updated.min()}  ->  last {updated.max()}")
 
     print("\n--- Region check (outside the bounding box) ---")
+    print(f"Rows outside latitude {MIN_LATITUDE} to {MAX_LATITUDE} and longitude "
+          f"{MIN_LONGITUDE} to {MAX_LONGITUDE} (degrees). Must be 0.")
     outside = ~(
         df["latitude"].between(MIN_LATITUDE, MAX_LATITUDE)
         & df["longitude"].between(MIN_LONGITUDE, MAX_LONGITUDE)
@@ -116,12 +143,14 @@ def print_profile(df):
     print(f"Outside: {outside.sum()}")
 
     print("\n--- Sample of the ids field ---")
+    print("Raw text from USGS: every id of the event, between commas.")
     print(df["ids"].head(5).to_string())
     id_lists = df["ids"].str.strip(",").str.split(",")
     ids_count = id_lists.str.len()
     print(f"\nids per event: min {ids_count.min()}, max {ids_count.max()}")
 
     print("\n--- ids checks needed by the schema ---")
+    print("Each count must be 0, or the load breaks a key of the database schema.")
     # The composite foreign key needs the preferred id inside the event's own ids.
     missing = sum(event_id not in ids for event_id, ids in zip(df["id"], id_lists))
     print(f"Preferred id missing from its own ids list: {missing}")
@@ -133,21 +162,25 @@ def print_profile(df):
     print(f"USGS ids shared by different events:  {pairs['usgs_id'].duplicated().sum()}")
 
     print("\n--- Rows with NULL mag_type ---")
+    print("The full rows (without ids), to see which events have no magnitude type.")
     print(df[df["mag_type"].isna()].drop(columns="ids").to_string())
 
     print("\n--- Common fixed depths (used when the real depth is unknown) ---")
+    print("Rows with exactly this depth: a default value set by USGS, not a measurement.")
     for fixed_depth in [0, 10, 33]:
-        print(f"depth == {fixed_depth} km: {(df['depth'] == fixed_depth).sum()}")
+        print(f"depth == {fixed_depth} km: {(df['depth'] == fixed_depth).sum()} rows")
 
 
 if __name__ == "__main__":
+    print("Data quality report of the raw USGS files in data/raw/ (before cleaning)\n")
     raw = load_raw_events()
     print_profile(raw)
 
     events = clean_events(raw)
     print("\n=== After cleaning ===")
-    print(f"Rows: {len(events)}")
-    print("\nColumn types:")
+    print(f"Rows: {len(events)}  (one row = one event version)")
+    print("\nColumn types (str = text, float64 = decimal number, "
+          "datetime64[..., UTC] = time in UTC):")
     print(events.dtypes.to_string())
-    print("\nFirst 3 rows:")
+    print("\nFirst 3 rows (time and updated in UTC, depth in km):")
     print(events.head(3).to_string())

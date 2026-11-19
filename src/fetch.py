@@ -43,6 +43,13 @@ PAUSE_SECONDS = 1         # pause between years, to be polite to a free public A
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
+def describe_filters():
+    """Return the request filters as text, for the first line of the output."""
+    return (f"magnitude {BASE_PARAMS['minmagnitude']}+, "
+            f"latitude {BASE_PARAMS['minlatitude']} to {BASE_PARAMS['maxlatitude']}, "
+            f"longitude {BASE_PARAMS['minlongitude']} to {BASE_PARAMS['maxlongitude']}")
+
+
 def request_events(params, label):
     """Send one query and return the raw response body (bytes).
 
@@ -119,6 +126,8 @@ def main():
     last_year = date.today().year
     failed_years = []
     total_events = 0
+    print(f"Full fetch from USGS: {describe_filters()}, "
+          f"years {FIRST_YEAR} to {last_year}, one request per year\n")
 
     for year in range(FIRST_YEAR, last_year + 1):
         try:

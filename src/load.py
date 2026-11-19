@@ -135,6 +135,8 @@ def report_result(new_earthquakes, new_versions, skipped):
 
 def main():
     """Full load: every yearly raw file in data/raw/."""
+    print("Full load: every yearly raw file in data/raw/ into the database "
+          "(versions already stored are skipped)")
     events = clean_events(load_raw_events())
     print(f"Loading {len(events)} event versions...")
 

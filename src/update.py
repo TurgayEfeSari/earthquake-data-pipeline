@@ -10,7 +10,7 @@ import sys
 from datetime import timedelta
 
 from db import get_connection
-from fetch import fetch_updates, save_update
+from fetch import describe_filters, fetch_updates, save_update
 from load import load_events, report_result
 from transform import clean_events, load_raw_events
 
@@ -27,6 +27,9 @@ def get_newest_stored_update():
 
 
 def main():
+    print(f"Daily update: USGS events ({describe_filters()}) changed since the "
+          f"newest stored version, minus a {SAFETY_MARGIN.days}-day safety margin")
+
     # Short connection: no transaction stays open while we wait for the API.
     newest = get_newest_stored_update()
     if newest is None:
